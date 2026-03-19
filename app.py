@@ -66,8 +66,7 @@ def fetch_career_stats(player_name, role, is_user):
 
 # --- UI: MAIN BANNER ---
 st.set_page_config(page_title="Khushal's Hand Cricket", page_icon="🏏", layout="centered")
-st.title("🏏 Hand Cricket Clash
-INDIA VS AUSTRALIA")
+st.title("🏏 INDIA VS AUSTRALIA")
 st.write("---")
 
 # --- PHASE: TOSS ---
