@@ -4,5 +4,5 @@ python-dotenv
 gunicorn
 streamlit
 pandas
-matplotlib
+plotly
 requests
