@@ -218,7 +218,9 @@ elif st.session_state.phase == 'match_over':
             "d2": st.session_state.d2, "d22": st.session_state.d22
         }
         try:
-            res = requests.post("http://127.0.0.1:5000/save_match", json=payload)
+            res = requests.post("https://cricket-api-backend-3zph.onrender.com/save_match", json=payload)
             st.success(res.json().get("message", "Saved!"))
         except:
             st.error("Failed to connect to Flask API.")
+
+            
