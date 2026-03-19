@@ -2,3 +2,7 @@ flask
 mysql-connector-python
 python-dotenv
 gunicorn
+streamlit
+pandas
+matplotlib
+requests
