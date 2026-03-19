@@ -71,7 +71,7 @@ st.write("---")
 
 # --- PHASE: TOSS ---
 if st.session_state.phase == 'toss':
-    st.header("🪙 The Toss")
+    st.header("The Toss")
     col1, col2 = st.columns(2)
     with col1:
         n = st.radio("Call it:", ["Even", "Odd"])
