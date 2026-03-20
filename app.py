@@ -451,41 +451,63 @@ elif st.session_state.phase == 'match_over':
     st.subheader("📈 Run Chase Flow")
     fig = go.Figure()
     
-    # 🌟 UPGRADED BEAUTIFUL HTML GRAPH HOVER DATA 🌟
+    fig = go.Figure()
+    
+    # 1. Create custom text that ONLY exists on wicket balls, empty everywhere else
+    custom1 = ["🚨 WICKET!" if (i > 0 and st.session_state.timeline1[i] == st.session_state.timeline1[i-1]) else "" for i in range(len(st.session_state.timeline1))]
+    custom2 = ["🚨 WICKET!" if (i > 0 and st.session_state.timeline2[i] == st.session_state.timeline2[i-1]) else "" for i in range(len(st.session_state.timeline2))]
+
+    # 2. Main Lines (We inject the custom text directly into the hover template here)
     fig.add_trace(go.Scatter(
         x=list(range(len(st.session_state.timeline1))), y=st.session_state.timeline1, mode='lines', name='India Runs', 
         line=dict(color='#1f77b4', width=3),
-        hovertemplate="<b>India</b><br>Ball: %{x}<br>Score: %{y}<extra></extra>"
+        customdata=custom1,
+        hovertemplate="<b>India</b><br>Ball: %{x}<br>Score: %{y} <span style='color:#ff4b4b'><b>%{customdata}</b></span><extra></extra>"
     ))
     fig.add_trace(go.Scatter(
         x=list(range(len(st.session_state.timeline2))), y=st.session_state.timeline2, mode='lines', name='Australia Runs', 
         line=dict(color='#ff7f0e', width=3, dash='dash'),
-        hovertemplate="<b>Australia</b><br>Ball: %{x}<br>Score: %{y}<extra></extra>"
+        customdata=custom2,
+        hovertemplate="<b>Australia</b><br>Ball: %{x}<br>Score: %{y} <span style='color:#ff4b4b'><b>%{customdata}</b></span><extra></extra>"
     ))
 
+    # 3. Calculate Wicket Coordinates
     w_x1 = [i for i in range(1, len(st.session_state.timeline1)) if st.session_state.timeline1[i] == st.session_state.timeline1[i-1]]
     w_y1 = [st.session_state.timeline1[i] for i in w_x1]
     w_x2 = [i for i in range(1, len(st.session_state.timeline2)) if st.session_state.timeline2[i] == st.session_state.timeline2[i-1]]
     w_y2 = [st.session_state.timeline2[i] for i in w_x2]
 
+    # 4. Draw the Wicket Markers (hoverinfo='skip' completely disables their annoying ghost boxes!)
     if w_x1:
-        fig.add_trace(go.Scatter(x=w_x1, y=w_y1, mode='markers', name='India Wickets', marker=dict(color='red', size=12, symbol='x', line=dict(width=2, color='white')), hovertemplate="🚨 <b>WICKET!</b><br>Ball: %{x}<br>Score: %{y}<extra></extra>"))
+        fig.add_trace(go.Scatter(x=w_x1, y=w_y1, mode='markers', name='India Wickets', marker=dict(color='red', size=12, symbol='x', line=dict(width=2, color='white')), hoverinfo='skip'))
     if w_x2:
-        fig.add_trace(go.Scatter(x=w_x2, y=w_y2, mode='markers', name='Australia Wickets', marker=dict(color='black', size=12, symbol='x', line=dict(width=2, color='white')), hovertemplate="🚨 <b>WICKET!</b><br>Ball: %{x}<br>Score: %{y}<extra></extra>"))
+        fig.add_trace(go.Scatter(x=w_x2, y=w_y2, mode='markers', name='Australia Wickets', marker=dict(color='black', size=12, symbol='x', line=dict(width=2, color='white')), hoverinfo='skip'))
 
+    # 5. Graph Formatting
     max_balls = max(len(st.session_state.timeline1), len(st.session_state.timeline2))
     fig.update_layout(xaxis_title="Balls Bowled", yaxis_title="Runs Scored", hovermode="x unified", xaxis=dict(tickmode='linear', tick0=0, dtick=6, range=[0, max_balls + 1]), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+    
     for over_mark in range(6, max_balls + 1, 6):
         fig.add_vline(x=over_mark, line_width=1, line_dash="dot", line_color="gray", opacity=0.4)
 
     st.plotly_chart(fig, use_container_width=True)
     
     st.write("---")
-    if st.button("💾 Save Match Stats to Cloud", use_container_width=True):
-        payload = {"d1": st.session_state.d1, "d11": st.session_state.d11, "d2": st.session_state.d2, "d22": st.session_state.d22}
-        with st.spinner("Connecting to Aiven Database via Flask..."):
-            try:
-                res = requests.post(f"{API_URL}/save_match", json=payload)
-                st.success(res.json().get("message", "Data Successfully Saved!"))
-            except:
-                st.error("Failed to connect to the Server. Ensure Render API is awake.")
+    if not st.session_state.match_saved:
+        if st.button("💾 Save Match Stats to Cloud", use_container_width=True):
+            payload = {"d1": st.session_state.d1, "d11": st.session_state.d11, "d2": st.session_state.d2, "d22": st.session_state.d22}
+            with st.spinner("Connecting to Aiven Database via Flask..."):
+                try:
+                    res = requests.post(f"{API_URL}/save_match", json=payload)
+                    if res.status_code == 200:
+                        st.session_state.match_saved = True
+                        st.rerun() # Refresh the page to hide the button!
+                    else:
+                        st.error("Failed to save to database. Please try again.")
+                except:
+                    st.error("Failed to connect to the Server. Ensure Render API is awake.")
+    else:
+        st.success("✅ Match Data Safely Stored in Aiven Database!")
+    st.write("---")
+    if st.button("🔄 Play Again", type="primary", use_container_width=True):
+        st.session_state.clear()
