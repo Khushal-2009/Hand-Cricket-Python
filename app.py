@@ -137,7 +137,7 @@ elif st.session_state.phase == 'innings_break':
 
 # --- PHASE: TOSS ---
 elif st.session_state.phase == 'toss':
-    st.header("🪙 The Toss")
+    st.header("The Toss")
     if st.session_state.toss_won_by_user is None:
         col1, col2 = st.columns(2)
         with col1:
