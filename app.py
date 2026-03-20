@@ -49,7 +49,9 @@ if 'phase' not in st.session_state:
     st.session_state.out_batsman = ""
     st.session_state.out_bowler = ""
     st.session_state.return_phase = ""
-    st.session_state.break_msg = "" # New tracker for Innings Over screen
+    st.session_state.after_break_phase = "" 
+    st.session_state.break_msg = "" 
+    st.session_state.is_all_out = False # Tracks if it's the final wicket
 
 # --- HELPER FUNCTIONS ---
 def update_bowling(dict_name, bowler, balls, runs, wickets):
@@ -65,8 +67,8 @@ def save_batsman(dict_name, batsman, runs, balls):
 
 def fetch_career_stats(player_name, role, is_user):
     try:
-        # Increased timeout to 8 seconds so Render has time to wake up!
-        res = requests.post(f"{API_URL}/get_stats", json={"player_name": player_name, "role": role, "is_user": is_user}, timeout=8)
+        # INCREASED TIMEOUT: Gives Render API 15 seconds to wake up from sleep!
+        res = requests.post(f"{API_URL}/get_stats", json={"player_name": player_name, "role": role, "is_user": is_user}, timeout=15)
         if res.status_code == 200 and len(res.json()) > 0:
             stats = res.json()[0]
             st.markdown(f"**📊 {player_name.upper()} ({'Career Batting' if role=='bat' else 'Career Bowling'})**")
@@ -74,9 +76,9 @@ def fetch_career_stats(player_name, role, is_user):
             for idx, (key, value) in enumerate(stats.items()):
                 cols[idx].metric(key, value)
         else:
-            st.info(f"📊 **{player_name}:** Debut match! No prior career stats saved yet.")
+            st.info(f"📊 **{player_name}:** No DB records found. (If this is a bug, save a match first!)")
     except Exception as e:
-        st.warning(f"⚠️ Could not load stats for {player_name} (API might be asleep).")
+        st.warning(f"⚠️ Waking up Render Database for {player_name}... This may take 10 seconds.")
 
 def format_bowling_card(raw_dict):
     if not raw_dict:
@@ -95,33 +97,40 @@ if st.session_state.phase not in ['wicket_screen', 'innings_break']:
 # --- PHASE: WICKET SCREEN ---
 if st.session_state.phase == 'wicket_screen':
     st.markdown("<br><br><br>", unsafe_allow_html=True) 
-    st.markdown("<h1 style='text-align: center; color: #ff4b4b; font-size: 80px;'>🚨 WICKET! 🚨</h1>", unsafe_allow_html=True)
+    
+    # DYNAMIC ALL OUT HEADER
+    if st.session_state.is_all_out:
+        st.markdown("<h1 style='text-align: center; color: #ff4b4b; font-size: 90px;'>🚨 ALL OUT! 🚨</h1>", unsafe_allow_html=True)
+    else:
+        st.markdown("<h1 style='text-align: center; color: #ff4b4b; font-size: 80px;'>🚨 WICKET! 🚨</h1>", unsafe_allow_html=True)
+        
     st.markdown(f"<h2 style='text-align: center;'>{st.session_state.out_batsman} has been dismissed!</h2>", unsafe_allow_html=True)
     st.markdown(f"<h3 style='text-align: center; color: gray;'>Bowled by: {st.session_state.out_bowler}</h3>", unsafe_allow_html=True)
     st.markdown("<br><br>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
-    if col2.button("➡️ Continue Match", use_container_width=True):
+    btn_txt = "➡️ Continue to Innings Break" if st.session_state.is_all_out else "➡️ Bring in the Next Batsman"
+    if col2.button(btn_txt, use_container_width=True):
         st.session_state.phase = st.session_state.return_phase
         st.rerun()
 
-# --- PHASE: INNINGS BREAK (NEW) ---
+# --- PHASE: INNINGS BREAK ---
 elif st.session_state.phase == 'innings_break':
     st.markdown("<br><br><br>", unsafe_allow_html=True) 
     st.markdown(f"<h1 style='text-align: center; color: #ffeb3b; font-size: 70px;'>🔄 {st.session_state.break_msg} 🔄</h1>", unsafe_allow_html=True)
     
-    current_score = st.session_state.l1 if st.session_state.return_phase == 'inning2_sys_bat' else st.session_state.l2
-    st.markdown(f"<h2 style='text-align: center;'>Innings Score: {current_score}</h2>", unsafe_allow_html=True)
+    current_score = st.session_state.l1 if st.session_state.after_break_phase == 'inning2_sys_bat' else st.session_state.l2
+    st.markdown(f"<h2 style='text-align: center;'>Final Innings Score: {current_score}</h2>", unsafe_allow_html=True)
     
-    if st.session_state.target > 0 and st.session_state.return_phase != 'match_over':
-        st.markdown(f"<h2 style='text-align: center; color: #ff4b4b;'>Target to win: {st.session_state.target}</h2>", unsafe_allow_html=True)
+    if st.session_state.target > 0 and st.session_state.after_break_phase != 'match_over':
+        st.markdown(f"<h2 style='text-align: center; color: #ff4b4b;'>Target to win: {st.session_state.target} runs</h2>", unsafe_allow_html=True)
     
     st.markdown("<br><br>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
-    btn_text = "➡️ Start Next Innings" if st.session_state.return_phase != 'match_over' else "➡️ View Match Results"
+    btn_text = "➡️ Start Next Innings" if st.session_state.after_break_phase != 'match_over' else "➡️ View Match Results"
     if col2.button(btn_text, use_container_width=True):
-        st.session_state.phase = st.session_state.return_phase
+        st.session_state.phase = st.session_state.after_break_phase
         st.rerun()
 
 # --- PHASE: TOSS ---
@@ -187,7 +196,6 @@ elif st.session_state.phase in ['inning1_user_bat', 'inning2_user_bat']:
 
     col1, col2 = st.columns(2)
     with col1:
-        # LOCKED BATSMAN SELECTION
         if st.session_state.curr_bat is None:
             selected_bat = st.selectbox("Select Batsman:", list(st.session_state.userbatting.values()), index=None, placeholder="Choose your batsman...")
             if selected_bat:
@@ -242,10 +250,8 @@ elif st.session_state.phase in ['inning1_user_bat', 'inning2_user_bat']:
                     
                     st.session_state.out_batsman = st.session_state.curr_bat
                     st.session_state.out_bowler = st.session_state.curr_bowl
-                    
                     st.session_state.userbatting = {k:v for k,v in st.session_state.userbatting.items() if v != st.session_state.curr_bat}
                     st.session_state.timeline1.append(st.session_state.l1)
-                    
                 else:
                     st.success(f"Opponent bowled {sys_bowl}. You scored **{i}** runs!")
                     st.session_state.l1 += i
@@ -255,9 +261,20 @@ elif st.session_state.phase in ['inning1_user_bat', 'inning2_user_bat']:
                     
                 innings_over = not st.session_state.userbatting or st.session_state.balls1 >= 30 or (st.session_state.target > 0 and st.session_state.l1 >= st.session_state.target)
                 
+                # Setup Next Phase Destiny
+                if st.session_state.phase == 'inning1_user_bat':
+                    final_dest = 'inning2_sys_bat'
+                else:
+                    final_dest = 'match_over'
+
                 if innings_over:
                     if not is_wicket and st.session_state.curr_bat in st.session_state.userbatting.values():
                         save_batsman('d1', st.session_state.curr_bat, st.session_state.curr_bat_runs, st.session_state.curr_bat_balls)
+                    
+                    if st.session_state.phase == 'inning1_user_bat': st.session_state.target = st.session_state.l1 + 1
+                    
+                    st.session_state.is_all_out = not bool(st.session_state.userbatting)
+                    st.session_state.break_msg = "ALL OUT!" if st.session_state.is_all_out else "INNINGS OVER!"
                     
                     st.session_state.curr_bowl = None
                     st.session_state.curr_bat = None 
@@ -265,21 +282,21 @@ elif st.session_state.phase in ['inning1_user_bat', 'inning2_user_bat']:
                     st.session_state.curr_bat_runs = 0
                     st.session_state.curr_bat_balls = 0
                     
-                    st.session_state.break_msg = "ALL OUT!" if not st.session_state.userbatting else "INNINGS OVER!"
-                    
-                    if st.session_state.phase == 'inning1_user_bat':
-                        st.session_state.target = st.session_state.l1 + 1
-                        st.session_state.return_phase = 'inning2_sys_bat'
+                    if is_wicket:
+                        st.session_state.phase = 'wicket_screen'
+                        st.session_state.return_phase = 'innings_break'
+                        st.session_state.after_break_phase = final_dest
                     else:
-                        st.session_state.return_phase = 'match_over'
+                        st.session_state.phase = 'innings_break'
+                        st.session_state.after_break_phase = final_dest
                         
-                    st.session_state.phase = 'innings_break'
                 elif is_wicket:
+                    st.session_state.is_all_out = False
                     st.session_state.curr_bat = None 
                     st.session_state.curr_bat_runs = 0
                     st.session_state.curr_bat_balls = 0
-                    st.session_state.return_phase = st.session_state.phase
                     st.session_state.phase = 'wicket_screen'
+                    st.session_state.return_phase = st.session_state.phase
 
                 st.rerun()
 
@@ -306,13 +323,16 @@ elif st.session_state.phase in ['inning1_sys_bat', 'inning2_sys_bat']:
             st.markdown(f"#### 🏏 Opponent Batsman: **{st.session_state.curr_bat}**")
 
     with col2:
-        # FORCE BOWLER DESELECTION AFTER OVER
-        if st.session_state.balls2 > 0 and st.session_state.balls2 % 6 == 0 and st.session_state.last_over_balls != st.session_state.balls2:
+        need_new_bowler = False
+        if st.session_state.curr_bowl is None:
+            need_new_bowler = True
+        elif st.session_state.balls2 > 0 and st.session_state.balls2 % 6 == 0 and st.session_state.last_over_balls != st.session_state.balls2:
             st.session_state.curr_bowl = None 
             st.session_state.last_over_balls = st.session_state.balls2
             st.toast("🔄 OVER COMPLETE! Pick your next bowler.", icon="🔄")
+            need_new_bowler = True
             
-        if st.session_state.curr_bowl is None:
+        if need_new_bowler or st.session_state.curr_bowl is None:
             selected_bowl = st.selectbox("Select your Bowler:", list(st.session_state.userbowling.values()), index=None, placeholder="Hand the ball to...")
             if selected_bowl:
                 st.session_state.curr_bowl = selected_bowl
@@ -351,7 +371,6 @@ elif st.session_state.phase in ['inning1_sys_bat', 'inning2_sys_bat']:
                     
                     st.session_state.out_batsman = st.session_state.curr_bat
                     st.session_state.out_bowler = st.session_state.curr_bowl
-                    
                     st.session_state.sysbatting = {k:v for k,v in st.session_state.sysbatting.items() if v != st.session_state.curr_bat}
                     st.session_state.timeline2.append(st.session_state.l2)
                     
@@ -364,9 +383,19 @@ elif st.session_state.phase in ['inning1_sys_bat', 'inning2_sys_bat']:
                     
                 innings_over = not st.session_state.sysbatting or st.session_state.balls2 >= 30 or (st.session_state.target > 0 and st.session_state.l2 >= st.session_state.target)
                 
+                if st.session_state.phase == 'inning1_sys_bat':
+                    final_dest = 'inning2_user_bat'
+                else:
+                    final_dest = 'match_over'
+
                 if innings_over:
                     if not is_wicket and st.session_state.curr_bat in st.session_state.sysbatting.values():
                         save_batsman('d2', st.session_state.curr_bat, st.session_state.curr_bat_runs, st.session_state.curr_bat_balls)
+                    
+                    if st.session_state.phase == 'inning1_sys_bat': st.session_state.target = st.session_state.l2 + 1
+                    
+                    st.session_state.is_all_out = not bool(st.session_state.sysbatting)
+                    st.session_state.break_msg = "ALL OUT!" if st.session_state.is_all_out else "INNINGS OVER!"
                     
                     st.session_state.curr_bowl = None
                     st.session_state.curr_bat = None 
@@ -374,21 +403,21 @@ elif st.session_state.phase in ['inning1_sys_bat', 'inning2_sys_bat']:
                     st.session_state.curr_bat_runs = 0
                     st.session_state.curr_bat_balls = 0
                     
-                    st.session_state.break_msg = "ALL OUT!" if not st.session_state.sysbatting else "INNINGS OVER!"
-                    
-                    if st.session_state.phase == 'inning1_sys_bat':
-                        st.session_state.target = st.session_state.l2 + 1
-                        st.session_state.return_phase = 'inning2_user_bat'
+                    if is_wicket:
+                        st.session_state.phase = 'wicket_screen'
+                        st.session_state.return_phase = 'innings_break'
+                        st.session_state.after_break_phase = final_dest
                     else:
-                        st.session_state.return_phase = 'match_over'
+                        st.session_state.phase = 'innings_break'
+                        st.session_state.after_break_phase = final_dest
                         
-                    st.session_state.phase = 'innings_break'
                 elif is_wicket:
+                    st.session_state.is_all_out = False
                     st.session_state.curr_bat = None 
                     st.session_state.curr_bat_runs = 0
                     st.session_state.curr_bat_balls = 0
-                    st.session_state.return_phase = st.session_state.phase
                     st.session_state.phase = 'wicket_screen'
+                    st.session_state.return_phase = st.session_state.phase
 
                 st.rerun()
 
@@ -422,16 +451,16 @@ elif st.session_state.phase == 'match_over':
     st.subheader("📈 Run Chase Flow")
     fig = go.Figure()
     
-    # UPGRADED GRAPH HOVER DATA
+    # 🌟 UPGRADED BEAUTIFUL HTML GRAPH HOVER DATA 🌟
     fig.add_trace(go.Scatter(
         x=list(range(len(st.session_state.timeline1))), y=st.session_state.timeline1, mode='lines', name='India Runs', 
         line=dict(color='#1f77b4', width=3),
-        hovertemplate="Ball: %{x}<br>Score: %{y}<extra></extra>"
+        hovertemplate="<b>India</b><br>Ball: %{x}<br>Score: %{y}<extra></extra>"
     ))
     fig.add_trace(go.Scatter(
         x=list(range(len(st.session_state.timeline2))), y=st.session_state.timeline2, mode='lines', name='Australia Runs', 
         line=dict(color='#ff7f0e', width=3, dash='dash'),
-        hovertemplate="Ball: %{x}<br>Score: %{y}<extra></extra>"
+        hovertemplate="<b>Australia</b><br>Ball: %{x}<br>Score: %{y}<extra></extra>"
     ))
 
     w_x1 = [i for i in range(1, len(st.session_state.timeline1)) if st.session_state.timeline1[i] == st.session_state.timeline1[i-1]]
@@ -440,9 +469,9 @@ elif st.session_state.phase == 'match_over':
     w_y2 = [st.session_state.timeline2[i] for i in w_x2]
 
     if w_x1:
-        fig.add_trace(go.Scatter(x=w_x1, y=w_y1, mode='markers', name='India Wickets', marker=dict(color='red', size=12, symbol='x', line=dict(width=2, color='white')), hovertemplate="🚨 WICKET! Score was %{y}<extra></extra>"))
+        fig.add_trace(go.Scatter(x=w_x1, y=w_y1, mode='markers', name='India Wickets', marker=dict(color='red', size=12, symbol='x', line=dict(width=2, color='white')), hovertemplate="🚨 <b>WICKET!</b><br>Ball: %{x}<br>Score: %{y}<extra></extra>"))
     if w_x2:
-        fig.add_trace(go.Scatter(x=w_x2, y=w_y2, mode='markers', name='Australia Wickets', marker=dict(color='black', size=12, symbol='x', line=dict(width=2, color='white')), hovertemplate="🚨 WICKET! Score was %{y}<extra></extra>"))
+        fig.add_trace(go.Scatter(x=w_x2, y=w_y2, mode='markers', name='Australia Wickets', marker=dict(color='black', size=12, symbol='x', line=dict(width=2, color='white')), hovertemplate="🚨 <b>WICKET!</b><br>Ball: %{x}<br>Score: %{y}<extra></extra>"))
 
     max_balls = max(len(st.session_state.timeline1), len(st.session_state.timeline2))
     fig.update_layout(xaxis_title="Balls Bowled", yaxis_title="Runs Scored", hovermode="x unified", xaxis=dict(tickmode='linear', tick0=0, dtick=6, range=[0, max_balls + 1]), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
