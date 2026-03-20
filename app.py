@@ -92,6 +92,7 @@ def format_bowling_card(raw_dict):
 st.set_page_config(page_title="Khushal's Hand Cricket", page_icon="🏏", layout="centered")
 if st.session_state.phase not in ['wicket_screen', 'innings_break']:
     st.title("🏏 Hand Cricket Clash")
+    st.subheader(" INDIA VS AUSTRALIA ")
     st.write("---")
 
 # --- PHASE: WICKET SCREEN ---
