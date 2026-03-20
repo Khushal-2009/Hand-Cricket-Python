@@ -45,6 +45,7 @@ if 'phase' not in st.session_state:
     st.session_state.toss_total = 0
     st.session_state.toss_user_call = ""
     st.session_state.toss_user_num = 0
+    st.session_state.toss_sys_choice = ""
 
     st.session_state.out_batsman = ""
     st.session_state.out_bowler = ""
@@ -136,7 +137,7 @@ elif st.session_state.phase == 'innings_break':
 
 # --- PHASE: TOSS ---
 elif st.session_state.phase == 'toss':
-    st.header("The Toss")
+    st.header("🪙 The Toss")
     if st.session_state.toss_won_by_user is None:
         col1, col2 = st.columns(2)
         with col1:
@@ -152,6 +153,10 @@ elif st.session_state.phase == 'toss':
             st.session_state.toss_total = num + num1
             is_even = ((num + num1) % 2 == 0)
             st.session_state.toss_won_by_user = (n == "Even" and is_even) or (n == "Odd" and not is_even)
+            
+            # NEW: Lock in the system's choice immediately so it can't change later!
+            st.session_state.toss_sys_choice = r.choice(["Bat", "Bowl"])
+            
             st.rerun()
     else:
         st.markdown("<h2 style='text-align: center;'>🪙 TOSS RESULT 🪙</h2>", unsafe_allow_html=True)
@@ -171,10 +176,10 @@ elif st.session_state.phase == 'toss':
                 st.session_state.phase = 'inning1_sys_bat'
                 st.rerun()
         else:
-            sys_choice = r.choice(["Bat", "Bowl"])
-            st.error(f"💀 **YOU LOST THE TOSS.** Opponent elected to **{sys_choice}** first.")
+            # We now use the locked-in memory choice!
+            st.error(f"💀 **YOU LOST THE TOSS.** Opponent elected to **{st.session_state.toss_sys_choice}** first.")
             if st.button("Start Match", use_container_width=True):
-                if sys_choice == "Bat":
+                if st.session_state.toss_sys_choice == "Bat":
                     st.session_state.user_bat_inning = 2
                     st.session_state.phase = 'inning1_sys_bat'
                 else:
