@@ -301,9 +301,9 @@ elif st.session_state.phase in ['inning1_user_bat', 'inning2_user_bat']:
                     st.session_state.curr_bat = None 
                     st.session_state.curr_bat_runs = 0
                     st.session_state.curr_bat_balls = 0
-                    st.session_state.phase = 'wicket_screen'
                     st.session_state.return_phase = st.session_state.phase
-
+                    st.session_state.phase = 'wicket_screen'
+                    
                 st.rerun()
 
 # --- PHASE: SYSTEM BATTING ---
@@ -422,9 +422,9 @@ elif st.session_state.phase in ['inning1_sys_bat', 'inning2_sys_bat']:
                     st.session_state.curr_bat = None 
                     st.session_state.curr_bat_runs = 0
                     st.session_state.curr_bat_balls = 0
-                    st.session_state.phase = 'wicket_screen'
                     st.session_state.return_phase = st.session_state.phase
-
+                    st.session_state.phase = 'wicket_screen'
+                    
                 st.rerun()
 
 # --- PHASE: MATCH OVER ---
