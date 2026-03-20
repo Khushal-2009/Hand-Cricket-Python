@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import requests
 
 # --- API CONFIGURATION ---
-API_URL = "https://cricket-api-backend-3zph.onrender.com" 
+API_URL = "https://YOUR-RENDER-API-URL.onrender.com" 
 
 # --- 1. SETUP MEMORY (SESSION STATE) ---
 if 'phase' not in st.session_state:
@@ -45,8 +45,9 @@ if 'phase' not in st.session_state:
     st.session_state.toss_won_by_user = None
     st.session_state.toss_sys_num = 0
     st.session_state.toss_total = 0
+    st.session_state.toss_user_call = ""
+    st.session_state.toss_user_num = 0
 
-    # WICKET POPUP TRACKERS
     st.session_state.out_batsman = ""
     st.session_state.out_bowler = ""
     st.session_state.return_phase = ""
@@ -65,16 +66,18 @@ def save_batsman(dict_name, batsman, runs, balls):
 
 def fetch_career_stats(player_name, role, is_user):
     try:
-        res = requests.post(f"{API_URL}/get_stats", json={"player_name": player_name, "role": role, "is_user": is_user}, timeout=3)
+        # We wait 4 seconds max so the game doesn't freeze if Render is asleep
+        res = requests.post(f"{API_URL}/get_stats", json={"player_name": player_name, "role": role, "is_user": is_user}, timeout=4)
         if res.status_code == 200 and len(res.json()) > 0:
             stats = res.json()[0]
-            st.sidebar.markdown(f"### 📊 {player_name.upper()} ({'Batting' if role=='bat' else 'Bowling'})")
-            for key, value in stats.items():
-                st.sidebar.write(f"**{key}:** {value}")
+            st.markdown(f"**📊 {player_name.upper()} ({'Career Batting' if role=='bat' else 'Career Bowling'})**")
+            cols = st.columns(len(stats))
+            for idx, (key, value) in enumerate(stats.items()):
+                cols[idx].metric(key, value)
         else:
-            st.sidebar.info(f"{player_name}: Debut match! No prior stats.")
-    except:
-        pass 
+            st.info(f"📊 **{player_name}:** Debut match! No prior career stats found in database.")
+    except Exception as e:
+        st.error(f"⚠️ Could not load stats for {player_name}. Check if Render API is awake.")
 
 def format_bowling_card(raw_dict):
     if not raw_dict:
@@ -92,7 +95,7 @@ if st.session_state.phase != 'wicket_screen':
 
 # --- PHASE: WICKET SCREEN (FULL SCREEN TAKEOVER) ---
 if st.session_state.phase == 'wicket_screen':
-    st.markdown("<br><br><br>", unsafe_allow_html=True) # Adds vertical space to center it
+    st.markdown("<br><br><br>", unsafe_allow_html=True) 
     st.markdown("<h1 style='text-align: center; color: #ff4b4b; font-size: 80px;'>🚨 WICKET! 🚨</h1>", unsafe_allow_html=True)
     st.markdown(f"<h2 style='text-align: center;'>{st.session_state.out_batsman} has been dismissed!</h2>", unsafe_allow_html=True)
     st.markdown(f"<h3 style='text-align: center; color: gray;'>Bowled by: {st.session_state.out_bowler}</h3>", unsafe_allow_html=True)
@@ -116,14 +119,19 @@ elif st.session_state.phase == 'toss':
         if st.button("Flip Coin!", use_container_width=True):
             num1 = r.randint(1,10)
             st.session_state.toss_sys_num = num1
+            st.session_state.toss_user_num = num
+            st.session_state.toss_user_call = n
             st.session_state.toss_total = num + num1
             is_even = ((num + num1) % 2 == 0)
             st.session_state.toss_won_by_user = (n == "Even" and is_even) or (n == "Odd" and not is_even)
             st.rerun()
     else:
-        st.info(f"Opponent chose: **{st.session_state.toss_sys_num}** | Total: **{st.session_state.toss_total}**")
+        st.markdown("<h2 style='text-align: center;'>🪙 TOSS RESULT 🪙</h2>", unsafe_allow_html=True)
+        st.info(f"**You called:** {st.session_state.toss_user_call} | **You played:** {st.session_state.toss_user_num}")
+        st.info(f"**Opponent played:** {st.session_state.toss_sys_num} | **Total:** {st.session_state.toss_total}")
+        
         if st.session_state.toss_won_by_user:
-            st.success("🎉 You won the toss!")
+            st.success("🎉 **YOU WON THE TOSS!** 🎉")
             st.write("### What will you choose to do?")
             col1, col2 = st.columns(2)
             if col1.button("🏏 Bat First", use_container_width=True):
@@ -136,7 +144,7 @@ elif st.session_state.phase == 'toss':
                 st.rerun()
         else:
             sys_choice = r.choice(["Bat", "Bowl"])
-            st.error(f"💀 You lost the toss. Opponent elected to **{sys_choice}** first.")
+            st.error(f"💀 **YOU LOST THE TOSS.** Opponent elected to **{sys_choice}** first.")
             if st.button("Start Match", use_container_width=True):
                 if sys_choice == "Bat":
                     st.session_state.user_bat_inning = 2
@@ -167,7 +175,12 @@ elif st.session_state.phase in ['inning1_user_bat', 'inning2_user_bat']:
             st.session_state.last_selected_bat = st.session_state.curr_bat
 
     with col2:
-        if st.session_state.curr_bowl is None or (st.session_state.balls1 > 0 and st.session_state.balls1 % 6 == 0 and st.session_state.last_over_balls != st.session_state.balls1):
+        if st.session_state.curr_bowl is None:
+            st.session_state.curr_bowl = r.choice(list(st.session_state.sysbowling.values()))
+            st.session_state.last_over_balls = 0
+            st.session_state.show_bowl_stats = True
+            st.toast(f"🏏 Match Starts! Opening Bowler: {st.session_state.curr_bowl}", icon="🏏")
+        elif st.session_state.balls1 > 0 and st.session_state.balls1 % 6 == 0 and st.session_state.last_over_balls != st.session_state.balls1:
             st.session_state.curr_bowl = r.choice(list(st.session_state.sysbowling.values()))
             st.session_state.last_over_balls = st.session_state.balls1
             st.session_state.show_bowl_stats = True
@@ -176,12 +189,14 @@ elif st.session_state.phase in ['inning1_user_bat', 'inning2_user_bat']:
         if st.session_state.curr_bowl:
             st.markdown(f"#### 🥎 Bowler: **{st.session_state.curr_bowl}**")
 
+    # SHOW STATS IN THE MAIN UI (NOT SIDEBAR)
     if st.session_state.show_bat_stats or st.session_state.show_bowl_stats:
-        st.sidebar.header("📋 Pre-Delivery Stats")
-        if st.session_state.show_bat_stats and st.session_state.curr_bat:
-            fetch_career_stats(st.session_state.curr_bat, "bat", True)
-        if st.session_state.show_bowl_stats and st.session_state.curr_bowl:
-            fetch_career_stats(st.session_state.curr_bowl, "bowl", False)
+        with st.container(border=True):
+            if st.session_state.show_bat_stats and st.session_state.curr_bat:
+                fetch_career_stats(st.session_state.curr_bat, "bat", True)
+            if st.session_state.show_bowl_stats and st.session_state.curr_bowl:
+                st.write("") # Spacing
+                fetch_career_stats(st.session_state.curr_bowl, "bowl", False)
 
     if st.session_state.curr_bat is None:
         st.warning("⚠️ Waiting for captain... Please select a Batsman to continue the innings!")
@@ -202,8 +217,34 @@ elif st.session_state.phase in ['inning1_user_bat', 'inning2_user_bat']:
                     st.session_state.wickets1 += 1
                     update_bowling('d22', st.session_state.curr_bowl, 1, 0, 1)
                     save_batsman('d1', st.session_state.curr_bat, st.session_state.curr_bat_runs, st.session_state.curr_bat_balls)
+                    
+                    st.session_state.out_batsman = st.session_state.curr_bat
+                    st.session_state.out_bowler = st.session_state.curr_bowl
+                    
                     st.session_state.userbatting = {k:v for k,v in st.session_state.userbatting.items() if v != st.session_state.curr_bat}
                     st.session_state.timeline1.append(st.session_state.l1)
+                    
+                    # Target or Overs logic
+                    if not st.session_state.userbatting or st.session_state.balls1 >= 30 or (st.session_state.target > 0 and st.session_state.l1 >= st.session_state.target):
+                        if st.session_state.phase == 'inning1_user_bat':
+                            st.session_state.target = st.session_state.l1 + 1
+                            st.session_state.return_phase = 'inning2_sys_bat'
+                        else:
+                            st.session_state.return_phase = 'match_over'
+                    else:
+                        st.session_state.return_phase = st.session_state.phase
+                        
+                    # Wipe variables for the next player
+                    st.session_state.curr_bat = None 
+                    st.session_state.curr_bowl = None 
+                    st.session_state.last_over_balls = 0
+                    st.session_state.curr_bat_runs = 0
+                    st.session_state.curr_bat_balls = 0
+                    
+                    # TRIGGER WICKET SCREEN
+                    st.session_state.phase = 'wicket_screen'
+                    st.rerun()
+                    
                 else:
                     st.success(f"Opponent bowled {sys_bowl}. You scored **{i}** runs!")
                     st.session_state.l1 += i
@@ -211,40 +252,21 @@ elif st.session_state.phase in ['inning1_user_bat', 'inning2_user_bat']:
                     update_bowling('d22', st.session_state.curr_bowl, 1, i, 0)
                     st.session_state.timeline1.append(st.session_state.l1)
                     
-                # Evaluate if Innings is over
-                innings_over = not st.session_state.userbatting or st.session_state.balls1 >= 30 or (st.session_state.target > 0 and st.session_state.l1 >= st.session_state.target)
-                
-                if innings_over:
-                    if not is_wicket and st.session_state.curr_bat in st.session_state.userbatting.values():
+                    if st.session_state.balls1 >= 30 or (st.session_state.target > 0 and st.session_state.l1 >= st.session_state.target):
                         save_batsman('d1', st.session_state.curr_bat, st.session_state.curr_bat_runs, st.session_state.curr_bat_balls)
-                    
-                    st.session_state.curr_bowl = None
-                    st.session_state.curr_bat = None 
-                    st.session_state.last_over_balls = 0
-                    st.session_state.curr_bat_runs = 0
-                    st.session_state.curr_bat_balls = 0
-                    
-                    if st.session_state.phase == 'inning1_user_bat':
-                        st.session_state.target = st.session_state.l1 + 1
-                        next_phase = 'inning2_sys_bat'
-                    else:
-                        next_phase = 'match_over'
-                else:
-                    next_phase = st.session_state.phase # Stay in current phase
-
-                # Trigger Wicket Screen or proceed
-                if is_wicket:
-                    st.session_state.out_batsman = st.session_state.curr_bat
-                    st.session_state.out_bowler = st.session_state.curr_bowl
-                    st.session_state.return_phase = next_phase
-                    st.session_state.curr_bat = None # Clear batsman for next ball
-                    st.session_state.curr_bat_runs = 0
-                    st.session_state.curr_bat_balls = 0
-                    st.session_state.phase = 'wicket_screen'
-                else:
-                    st.session_state.phase = next_phase
-
-                st.rerun()
+                        
+                        st.session_state.curr_bat = None 
+                        st.session_state.curr_bowl = None 
+                        st.session_state.last_over_balls = 0
+                        st.session_state.curr_bat_runs = 0
+                        st.session_state.curr_bat_balls = 0
+                        
+                        if st.session_state.phase == 'inning1_user_bat':
+                            st.session_state.target = st.session_state.l1 + 1
+                            st.session_state.phase = 'inning2_sys_bat'
+                        else:
+                            st.session_state.phase = 'match_over'
+                    st.rerun()
 
 # --- PHASE: SYSTEM BATTING ---
 elif st.session_state.phase in ['inning1_sys_bat', 'inning2_sys_bat']:
@@ -269,7 +291,7 @@ elif st.session_state.phase in ['inning1_sys_bat', 'inning2_sys_bat']:
             st.markdown(f"#### 🏏 Opponent Batsman: **{st.session_state.curr_bat}**")
 
     with col2:
-        if st.session_state.curr_bowl is None or (st.session_state.balls2 > 0 and st.session_state.balls2 % 6 == 0 and st.session_state.last_over_balls != st.session_state.balls2):
+        if st.session_state.balls2 > 0 and st.session_state.balls2 % 6 == 0 and st.session_state.last_over_balls != st.session_state.balls2:
             st.session_state.curr_bowl = None 
             st.session_state.last_over_balls = st.session_state.balls2
             st.toast("🔄 OVER COMPLETE! Pick your next bowler.", icon="🔄")
@@ -280,12 +302,14 @@ elif st.session_state.phase in ['inning1_sys_bat', 'inning2_sys_bat']:
             st.session_state.show_bowl_stats = True 
             st.session_state.last_selected_bowl = st.session_state.curr_bowl
 
+    # SHOW STATS IN THE MAIN UI (NOT SIDEBAR)
     if st.session_state.show_bat_stats or st.session_state.show_bowl_stats:
-        st.sidebar.header("📋 Pre-Delivery Stats")
-        if st.session_state.show_bat_stats and st.session_state.curr_bat:
-            fetch_career_stats(st.session_state.curr_bat, "bat", False)
-        if st.session_state.show_bowl_stats and st.session_state.curr_bowl:
-            fetch_career_stats(st.session_state.curr_bowl, "bowl", True)
+        with st.container(border=True):
+            if st.session_state.show_bat_stats and st.session_state.curr_bat:
+                fetch_career_stats(st.session_state.curr_bat, "bat", False)
+            if st.session_state.show_bowl_stats and st.session_state.curr_bowl:
+                st.write("") # Spacing
+                fetch_career_stats(st.session_state.curr_bowl, "bowl", True)
 
     if st.session_state.curr_bowl is None:
         st.warning("⚠️ Waiting for captain... Please select a Bowler to continue the over!")
@@ -306,8 +330,32 @@ elif st.session_state.phase in ['inning1_sys_bat', 'inning2_sys_bat']:
                     st.session_state.wickets2 += 1
                     update_bowling('d11', st.session_state.curr_bowl, 1, 0, 1)
                     save_batsman('d2', st.session_state.curr_bat, st.session_state.curr_bat_runs, st.session_state.curr_bat_balls)
+                    
+                    st.session_state.out_batsman = st.session_state.curr_bat
+                    st.session_state.out_bowler = st.session_state.curr_bowl
+                    
                     st.session_state.sysbatting = {k:v for k,v in st.session_state.sysbatting.items() if v != st.session_state.curr_bat}
                     st.session_state.timeline2.append(st.session_state.l2)
+                    
+                    if not st.session_state.sysbatting or st.session_state.balls2 >= 30 or (st.session_state.target > 0 and st.session_state.l2 >= st.session_state.target):
+                        if st.session_state.phase == 'inning1_sys_bat':
+                            st.session_state.target = st.session_state.l2 + 1
+                            st.session_state.return_phase = 'inning2_user_bat'
+                        else:
+                            st.session_state.return_phase = 'match_over'
+                    else:
+                        st.session_state.return_phase = st.session_state.phase
+                        
+                    st.session_state.curr_bat = None 
+                    st.session_state.curr_bowl = None 
+                    st.session_state.last_over_balls = 0
+                    st.session_state.curr_bat_runs = 0
+                    st.session_state.curr_bat_balls = 0
+                    
+                    # TRIGGER WICKET SCREEN
+                    st.session_state.phase = 'wicket_screen'
+                    st.rerun()
+                    
                 else:
                     st.warning(f"Opponent played {sys_bat}. They scored **{sys_bat}** runs.")
                     st.session_state.l2 += sys_bat
@@ -315,40 +363,21 @@ elif st.session_state.phase in ['inning1_sys_bat', 'inning2_sys_bat']:
                     update_bowling('d11', st.session_state.curr_bowl, 1, sys_bat, 0)
                     st.session_state.timeline2.append(st.session_state.l2)
                     
-                # Evaluate if Innings is over
-                innings_over = not st.session_state.sysbatting or st.session_state.balls2 >= 30 or (st.session_state.target > 0 and st.session_state.l2 >= st.session_state.target)
-                
-                if innings_over:
-                    if not is_wicket and st.session_state.curr_bat in st.session_state.sysbatting.values():
+                    if st.session_state.balls2 >= 30 or (st.session_state.target > 0 and st.session_state.l2 >= st.session_state.target):
                         save_batsman('d2', st.session_state.curr_bat, st.session_state.curr_bat_runs, st.session_state.curr_bat_balls)
-                    
-                    st.session_state.curr_bowl = None
-                    st.session_state.curr_bat = None 
-                    st.session_state.last_over_balls = 0
-                    st.session_state.curr_bat_runs = 0
-                    st.session_state.curr_bat_balls = 0
-                    
-                    if st.session_state.phase == 'inning1_sys_bat':
-                        st.session_state.target = st.session_state.l2 + 1
-                        next_phase = 'inning2_user_bat'
-                    else:
-                        next_phase = 'match_over'
-                else:
-                    next_phase = st.session_state.phase # Stay in current phase
-
-                # Trigger Wicket Screen or proceed
-                if is_wicket:
-                    st.session_state.out_batsman = st.session_state.curr_bat
-                    st.session_state.out_bowler = st.session_state.curr_bowl
-                    st.session_state.return_phase = next_phase
-                    st.session_state.curr_bat = None # Clear batsman for next ball
-                    st.session_state.curr_bat_runs = 0
-                    st.session_state.curr_bat_balls = 0
-                    st.session_state.phase = 'wicket_screen'
-                else:
-                    st.session_state.phase = next_phase
-
-                st.rerun()
+                        
+                        st.session_state.curr_bat = None 
+                        st.session_state.curr_bowl = None 
+                        st.session_state.last_over_balls = 0
+                        st.session_state.curr_bat_runs = 0
+                        st.session_state.curr_bat_balls = 0
+                        
+                        if st.session_state.phase == 'inning1_sys_bat':
+                            st.session_state.target = st.session_state.l2 + 1
+                            st.session_state.phase = 'inning2_user_bat'
+                        else:
+                            st.session_state.phase = 'match_over'
+                    st.rerun()
 
 # --- PHASE: MATCH OVER ---
 elif st.session_state.phase == 'match_over':
