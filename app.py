@@ -506,7 +506,7 @@ elif st.session_state.phase == 'match_over':
     st.plotly_chart(fig, use_container_width=True)
     
     st.write("---")
-    if not st.session_state.match_saved:
+    if not st.session_state.get('match_saved', False):
         if st.button("💾 Save Match Stats to Cloud", use_container_width=True, key="save_btn"):
             payload = {"d1": st.session_state.d1, "d11": st.session_state.d11, "d2": st.session_state.d2, "d22": st.session_state.d22}
             with st.spinner("Connecting to Aiven Database via Flask..."):
