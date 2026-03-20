@@ -268,4 +268,20 @@ elif st.session_state.phase in ['inning1_sys_bat', 'inning2_sys_bat']:
                     st.session_state.timeline2.append(st.session_state.l2)
                     update_bowling('d11', st.session_state.curr_bowl, 1, sys_bat, 0)
                     
+                # Check for End of Innings
                 if not st.session_state.sysbatting or st.session_state.balls2 >= 30 or (st.session_state.target > 0 and st.session_state.l2 >= st.session_state.target):
+                    if st.session_state.curr_bat in st.session_state.sysbatting.values():
+                        save_batsman('d2', st.session_state.curr_bat, st.session_state.curr_bat_runs, st.session_state.curr_bat_balls)
+                    
+                    st.session_state.curr_bowl = None
+                    st.session_state.curr_bat = None 
+                    st.session_state.last_over_balls = 0
+                    st.session_state.curr_bat_runs = 0
+                    st.session_state.curr_bat_balls = 0
+                    
+                    if st.session_state.phase == 'inning1_sys_bat':
+                        st.session_state.target = st.session_state.l2 + 1
+                        st.session_state.phase = 'inning2_user_bat'
+                    else:
+                        st.session_state.phase = 'match_over'
+                st.rerun()
