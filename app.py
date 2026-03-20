@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import requests
 
 # --- API CONFIGURATION ---
-API_URL = "https://YOUR-RENDER-API-URL.onrender.com" 
+API_URL = "https://cricket-api-backend-3zph.onrender.com" 
 
 # --- 1. SETUP MEMORY (SESSION STATE) ---
 if 'phase' not in st.session_state:
