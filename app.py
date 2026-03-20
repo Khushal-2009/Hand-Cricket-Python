@@ -91,7 +91,7 @@ def format_bowling_card(raw_dict):
 # --- UI: MAIN BANNER ---
 st.set_page_config(page_title="Khushal's Hand Cricket", page_icon="🏏", layout="centered")
 if st.session_state.phase not in ['wicket_screen', 'innings_break']:
-    st.title("🏏 Khushal's Hand Cricket Clash")
+    st.title("🏏 Hand Cricket Clash")
     st.write("---")
 
 # --- PHASE: WICKET SCREEN ---
@@ -135,7 +135,7 @@ elif st.session_state.phase == 'innings_break':
 
 # --- PHASE: TOSS ---
 elif st.session_state.phase == 'toss':
-    st.header("🪙 The Toss")
+    st.header("The Toss")
     if st.session_state.toss_won_by_user is None:
         col1, col2 = st.columns(2)
         with col1:
@@ -210,12 +210,12 @@ elif st.session_state.phase in ['inning1_user_bat', 'inning2_user_bat']:
             st.session_state.curr_bowl = r.choice(list(st.session_state.sysbowling.values()))
             st.session_state.last_over_balls = 0
             st.session_state.show_bowl_stats = True
-            st.toast(f"🏏 Match Starts! Opening Bowler: {st.session_state.curr_bowl}", icon="🏏")
+            st.toast(f" Match Starts! Opening Bowler: {st.session_state.curr_bowl}", icon="🏏")
         elif st.session_state.balls1 > 0 and st.session_state.balls1 % 6 == 0 and st.session_state.last_over_balls != st.session_state.balls1:
             st.session_state.curr_bowl = r.choice(list(st.session_state.sysbowling.values()))
             st.session_state.last_over_balls = st.session_state.balls1
             st.session_state.show_bowl_stats = True
-            st.toast(f"🔄 OVER COMPLETE! New Bowler: {st.session_state.curr_bowl}", icon="🔄")
+            st.toast(f"OVER COMPLETE! New Bowler: {st.session_state.curr_bowl}", icon="🔄")
             
         if st.session_state.curr_bowl:
             st.markdown(f"#### 🥎 Bowler: **{st.session_state.curr_bowl}**")
@@ -329,7 +329,7 @@ elif st.session_state.phase in ['inning1_sys_bat', 'inning2_sys_bat']:
         elif st.session_state.balls2 > 0 and st.session_state.balls2 % 6 == 0 and st.session_state.last_over_balls != st.session_state.balls2:
             st.session_state.curr_bowl = None 
             st.session_state.last_over_balls = st.session_state.balls2
-            st.toast("🔄 OVER COMPLETE! Pick your next bowler.", icon="🔄")
+            st.toast("OVER COMPLETE! Pick your next bowler.", icon="🔄")
             need_new_bowler = True
             
         if need_new_bowler or st.session_state.curr_bowl is None:
